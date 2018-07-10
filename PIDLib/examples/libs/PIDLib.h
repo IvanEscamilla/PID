@@ -8,6 +8,8 @@
 #include <chrono>
 #include <ctime>
 #include "FIRLowFilter.h"
+#include "AbstractPlantModel.h"
+
 //*********************************************************************************
 // Class
 //*********************************************************************************
@@ -39,7 +41,7 @@ class PIDController
 		* @param  	ffc  	Low pass filter cut-off frecuency for "D" signal.
 		* @return 	void
 		*/
-        PIDController(double pGain, double iGain, double dGain, int fs, int lffCutoff);
+        PIDController(double pGain, double iGain, double dGain, int fs, int lffCutoff, AbstractPlantModel* model = 0);
         
         /**
 		* Destructor
@@ -55,7 +57,7 @@ class PIDController
 		* @param	desiredSttate	value of the desired state
 		* @return 	double			calculated feedback signal
 		*/
-        bool updatePID( double error, double desiredSttate, double *result);
+        bool updatePID( double error, double desiredSttate, double* controlSignal, double* feedbackSignal);
 
 		/**
 		* Updates proportional gain of the system
@@ -124,7 +126,15 @@ class PIDController
 		*/
 		double conv( double signal, double h[], int sizeOfH );
 
-		
+		/**
+		* calculates the convolution of a signal
+		* @param	signal
+		* @param	h[]		array of 	
+		* @return 	double
+		*/
+		void setFilterCutOffFreq( double newFc);
+
+
     private:
 
 		double	_dState,           // Last position input
@@ -143,7 +153,8 @@ class PIDController
 		int 	_lffCutoff,        // derivative low filter frecuency cutoff
 		        _fs;               // Sample Rate in Hert
 		double*	_hLowFilter;       // low filter sinc response
-		FIRLowFilter* _lf;         // low Filter instance var
+		FIRLowFilter* _lf;          // low Filter instance var
+		AbstractPlantModel* _model; // plant model
 		bool	_hasFilter;        // filter flag
 
 		

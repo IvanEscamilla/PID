@@ -9,6 +9,7 @@
 #include <mutex>
 #include <list>
 #include <fstream>
+#include <random>
 
 //*********************************************************************************
 // Defines
@@ -34,21 +35,38 @@ using namespace std;
 //*********************************************************************************
 
 std::mutex syncMutex;			// a global instance of std::mutex to protect global variable
-list<double> calculatedValues;	// a global instance of std::mutex to protect global variable
-list<int> timeSample;        // a global instance of std::mutex to protect global variable
-bool   killThraeds = false; 		// a global instance of std::mutex to protect global variable
-double setPoint = 255.0;
+list<double> errorSignal;	    // a global instance of std::mutex to protect global variable
+list<double> controlSignal;	    // a global instance of std::mutex to protect global variable
+list<double> feedbackSignal;    // a global instance of std::mutex to protect global variable
+list<int> timeSample;           // a global instance of std::mutex to protect global variable
+bool   killThraeds = false;     // a global instance of std::mutex to protect global variable
+double dgSetPoint = 255.0;
 double dgPGain = 0.6;
 double dgIGain = 0.5;
 double dgDGain = 0.158;
-double PIDOutput = 0;
+double dgErrorSignal = 0;
+double dgPIDControlSignal = 0;
+double dgPIDFeedbackSignal = 0;
 int    igSampleFreq = 250;
 int    igFilterCutOff = 100;
 int    igFilterOrder = 40;
 bool   run = false;
 std::clock_t start;
 double duration;
-PIDController pid(dgPGain,dgIGain,dgDGain, igSampleFreq, igFilterCutOff);
+
+class Sinus: public AbstractPlantModel {
+  public:
+    
+    double calculate( double controlSignal, double noise, double dt) {
+    	printf("calculate sinusModel %f %f %f\n", controlSignal, noise, dt );
+    	return (sin((int)( std::clock() - start ) / (CLOCKS_PER_SEC/1000))-0.5)*50 + noise + controlSignal;
+    };
+
+};
+
+Sinus* sinusModel = new Sinus();
+
+PIDController pid(dgPGain,dgIGain,dgDGain, igSampleFreq, igFilterCutOff, sinusModel);
 
 //*********************************************************************************
 // Defines
@@ -90,8 +108,8 @@ InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, onDGainChange);
 InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, onSampleFreqChange);
 InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, onFilterCutoffChange);
 InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, onFilterOrderChange);
-InputBox controlSignalInput(Coord(430,30),50,30,"Control Signal Value");
-InputBox feedbackSignalInput(Coord(430,70),50,30,"Feedback Signal Value");
+InputBox controlSignalInput(Coord(430,30),90,30,"Control Signal Value");
+InputBox feedbackSignalInput(Coord(430,70),90,30,"Feedback Signal Value");
 InputStepper SetPointInput(Coord(430,110),67,30,"Desired State",50, onDesiredStateChange);
 
 /*Labels* ******************************************************************
@@ -110,7 +128,7 @@ Button btnGetFeedbackSignal(Coord(680,70),40,30,"GET", getFeedbackSignalHandler)
 
 /*Buttons ******************************************************************
  ***************************************************************************/
-Graph PIDSignalGraph(Coord(20,(WINDOWHEIGHT/3) + 20), WINDOWWIDTH - 40, 2*(WINDOWHEIGHT/3) - 60, "PID Signal Out");
+Graph ControlSignalGraph(Coord(20,(WINDOWHEIGHT/3) + 20), WINDOWWIDTH - 40, 2*(WINDOWHEIGHT/3) - 60, "PID Signal Out");
 Graph ErrorSignalGraph(Coord(20,(WINDOWHEIGHT/3) + 20), WINDOWWIDTH - 40, 2*(WINDOWHEIGHT/3) - 60, "");
 Graph FeedbackSignalGraph(Coord(20,(WINDOWHEIGHT/3) + 20), WINDOWWIDTH - 40, 2*(WINDOWHEIGHT/3) - 60, "");
 Graph SetPointSignalGraph(Coord(20,(WINDOWHEIGHT/3) + 20), WINDOWWIDTH - 40, 2*(WINDOWHEIGHT/3) - 60, "");
@@ -173,7 +191,7 @@ void bindWindowElements() {
 	window.attach(OutputsText);
 
 	window.attach(SetPointInput);
-	SetPointInput.setValue(setPoint);
+	SetPointInput.setValue(dgSetPoint);
 	// Attach buttons
 	window.attach(btnStartSimulation);
 	window.attach(btnStopSimulation);
@@ -181,10 +199,13 @@ void bindWindowElements() {
 	window.attach(btnGetControllSignal);
 	window.attach(btnGetFeedbackSignal);
 
-	window.attach(PIDSignalGraph);
+	window.attach(ControlSignalGraph);
 	window.attach(ErrorSignalGraph);
-	ErrorSignalGraph.setNoBoxType();
+	window.attach(FeedbackSignalGraph);
 	window.attach(SetPointSignalGraph);
+
+	FeedbackSignalGraph.setNoBoxType();
+	ErrorSignalGraph.setNoBoxType();
 	SetPointSignalGraph.setNoBoxType();
 
 }
@@ -205,9 +226,10 @@ void GUIThread(){
 	    /* compute new values for widgets */
 		if(run){
 			Fl::lock();      // acquire the lock
-		    PIDSignalGraph.addValue(PIDOutput, SIGNALCOLOR(PID));
+		    ControlSignalGraph.addValue(dgPIDControlSignal, SIGNALCOLOR(CONTROL));
+		   	FeedbackSignalGraph.addValue(dgPIDFeedbackSignal, SIGNALCOLOR(FEEDBACK));
 		    //ErrorSignalGraph.addValue(val1, SIGNALCOLOR(ERROR));
-		   	SetPointSignalGraph.addValue(setPoint, SIGNALCOLOR(FEEDBACK));
+		   	SetPointSignalGraph.addValue(dgSetPoint, SIGNALCOLOR(SETPOINT));
 		    Fl::unlock();    // release the lock; allow other threads to access FLTK again
 		    Fl::awake();     // use Fl::awake() to signal main thread to refresh the GUI	
 		}
@@ -228,21 +250,24 @@ void PIDThread() {
 
 
 		if(run){
-			
-			//printf("PIDThread\n");
-		 	if( pid.updatePID( setPoint - PIDOutput, setPoint, &PIDOutput) ) {
+
+			dgErrorSignal = dgSetPoint - dgPIDControlSignal;
+			if( pid.updatePID( dgErrorSignal, dgSetPoint, &dgPIDControlSignal, &dgPIDFeedbackSignal) ) {
 		 		timeSample.push_back((int)( std::clock() - start ) / (CLOCKS_PER_SEC/1000));
-		 		calculatedValues.push_back(PIDOutput);
+		 		controlSignal.push_back(dgPIDControlSignal);
+		 		feedbackSignal.push_back(dgPIDFeedbackSignal);
+		 		errorSignal.push_back(dgErrorSignal);
 		 	}
 		}	
   	}
 
+  	/*
   	for(std::list<double>::iterator it=calculatedValues.begin(); it != calculatedValues.end(); ++it)
   		  	printf("list: %f\n", *it);
 
-	  for(std::list<int>::iterator it=timeSample.begin(); it != timeSample.end(); ++it)
+	for(std::list<int>::iterator it=timeSample.begin(); it != timeSample.end(); ++it)
 	  	printf("list time: %d\n", *it);
-
+	*/
   	printf("ready to kill PIDThread\n");
 
 }
@@ -265,6 +290,8 @@ void stopSimulationHandler(Fl_Widget*, void*) {
 
 void onCutOffFreqChangeHandle(Fl_Widget*, void*) {
 	printf("onCutOffFreqChangeHandle\n");
+	double newFCutoff = cutOffFreqInput.getValue();
+	pid.setFilterCutOffFreq(newFCutoff);
 }
 
 void getFeedbackSignalHandler(Fl_Widget*, void*) {
@@ -284,34 +311,13 @@ void startSimulationHandler(Fl_Widget* btn, void*) {
 }
 
 void getControlSignalHandler(Fl_Widget*, void*) {
-	printf("get control signal\n");
-
-	printf("test FIR Low filter\n");
-	double fs = 44000; // 44KHz
-	double fc = 100; // 300Hz cutOff
-	int N = 40;	 // 1024 # taps
-	printf("low filter: \n N = %d fs = 100 Hz, \n fcutoff = 300 Hz\n\n", N);
-	double *h = new double[N];
-
-	//test arrays
-	double array1[10];
-	double array2[] = {1,2,3,4,5,6};
-
-	printf(" length %ld, \n", (sizeof(array1)/sizeof(*array1)));
-	printf(" length %ld, \n", (sizeof(array2)/sizeof(*array2)));
-
-	FIRLowFilter lf(fc, fs, N);
-	lf.calculate(h);
-
-	for (int i = 0; i < N; i++) {
-	        printf(" %f, \n", h[i]);
-	       	PIDSignalGraph.addValue( h[i], SIGNALCOLOR(PID));
-	}
+	printf("Getting controlSignal ...\n");
+	controlSignalInput.setValue(std::to_string(pid.getCotrolSignal()));
 }
 
 void onDesiredStateChange(Fl_Widget*, void*) {
 	printf("desired state change\n");
-	setPoint = SetPointInput.getValue();
+	dgSetPoint = SetPointInput.getValue();
 }
 
 void onPGainChange(Fl_Widget*, void*) {

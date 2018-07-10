@@ -116,8 +116,12 @@ void FIRLowFilter::setFCutoff( double newFc ) {
 * @return 	void
 */
 void FIRLowFilter::setSampleFreq( double newFs ) {
+
+	if(newFs < 10 ) return;
+
 	_fs = newFs;
 	_fc /= _fs;
+
 	return;
 }
 

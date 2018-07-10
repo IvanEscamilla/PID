@@ -17,6 +17,7 @@ all: $(MAIN)
 	cp $(MAIN) $(LIBSPATH)
 	cp PIDLib.h $(LIBSPATH)
 	cp FIRLowFilter.h $(LIBSPATH)
+	cp AbstractPlantModel.h $(LIBSPATH)
 
 $(MAIN): $(OBJS)
 	ar -r $(MAIN) $(OBJS)

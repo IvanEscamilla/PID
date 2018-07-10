@@ -18,7 +18,7 @@ using namespace std;
 
 enum SIGNALCOLOR
 {
-	PID = FL_GREEN,
+	CONTROL = FL_GREEN,
 	ERROR = FL_RED,
 	FEEDBACK = FL_YELLOW,
 	SETPOINT = FL_WHITE,

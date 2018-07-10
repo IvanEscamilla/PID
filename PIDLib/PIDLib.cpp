@@ -49,7 +49,11 @@ PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 
  *    The parametzxers specified here are those for for which we can't set up
  *    reliable defaults, so we need to have the user set them.
  ***************************************************************************/
-PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 10, int lffCutoff = 100) {
+PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 10, int lffCutoff = 100, AbstractPlantModel* model) {
+
+	//Sample freq minimum 10 Hertz
+	if( fs < 10 ) fs = 10;
+
     PIDController::setPIDGains(pGain, iGain, dGain, fs);	//Set gains
     _fs = fs;					//set sample rate, defaults 10 Hert
     _St = (double)1/_fs;				//Calculate sample time
@@ -69,6 +73,7 @@ PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 
     _hLowFilter = new double[40];
     _lf = new FIRLowFilter(lffCutoff, _fs, 40);
 	_lf->calculate(_hLowFilter);
+	_model = model;
 }
 
 PIDController::~PIDController(){
@@ -76,9 +81,9 @@ PIDController::~PIDController(){
 	delete _lf;
 } 
 
-bool PIDController::updatePID( double error, double desiredState, double* result){
+bool PIDController::updatePID( double error, double desiredState, double* controlSignal, double* feedbackSignal){
 
-	double pTerm, dTerm, iTerm, eFiltered, output;
+	double pTerm, dTerm, iTerm, eFiltered;
 	double now = nowMs();
  	double timeChange = (now - _lastTime);
 
@@ -111,16 +116,22 @@ bool PIDController::updatePID( double error, double desiredState, double* result
 		
 		_dState = desiredState;
 
-		output = pTerm + iTerm + dTerm;
+		_cotrolSignal = pTerm + iTerm + dTerm;
 
-		if(output > _outMax) {
-			output = _outMax;
-		} else if(output < _outMin) {
-			output = _outMin;
+		if(_cotrolSignal > _outMax) {
+			_cotrolSignal = _outMax;
+		} else if(_cotrolSignal < _outMin) {
+			_cotrolSignal = _outMin;
 		}
 		
 		_lastTime = now;
-		*result = output;
+		*controlSignal = _cotrolSignal;
+
+		// calculate fbsignal
+		_feedbackSignal = _model->calculate(_cotrolSignal, _model->generateNoise(), (int)now);
+
+		*feedbackSignal = _feedbackSignal;
+
 		return true;
 	}
 	
@@ -159,7 +170,7 @@ void PIDController::setDGain( double newDGain ) {
 
 void PIDController::setFS( int newFS ) {
 
-	if (newFS > 0) {
+	if (newFS >= 10) {
 	
 		double newSampleTime = (double)1/newFS;  //Calculate sample time
 	    //adjusts the Ki and kd gains 
@@ -170,7 +181,12 @@ void PIDController::setFS( int newFS ) {
 
 		_fs = newFS;           // set sample rate
 	    _St = newSampleTime;   // set new sample time
+	    _lf->setSampleFreq(newFS);
 	} 
+}
+
+void PIDController::setFilterCutOffFreq( double newFc) {
+	_lf->setFCutoff(newFc);
 }
 
 double PIDController::getCotrolSignal() {
