@@ -27,7 +27,7 @@ class PIDController
 		* @param  	fs  	Sample Rate in Hz, minimum value of 10 Hz.
 		* @return void
 		*/
-        PIDController(double pGain, double iGain, double dGain, double fs); 
+        PIDController(double pGain, double iGain, double dGain, int fs); 
 
         /**
 		* Contructor
@@ -39,7 +39,7 @@ class PIDController
 		* @param  	ffc  	Low pass filter cut-off frecuency for "D" signal.
 		* @return 	void
 		*/
-        PIDController(double pGain, double iGain, double dGain, double fs, double lffCutoff);
+        PIDController(double pGain, double iGain, double dGain, int fs, int lffCutoff);
         
         /**
 		* Destructor
@@ -55,7 +55,7 @@ class PIDController
 		* @param	desiredSttate	value of the desired state
 		* @return 	double			calculated feedback signal
 		*/
-        double updatePID( double error, double desiredSttate);
+        bool updatePID( double error, double desiredSttate, double *result);
 
 		/**
 		* Updates proportional gain of the system
@@ -83,16 +83,17 @@ class PIDController
 		* @param	newFS	value of the desired FS	
 		* @return 	void
 		*/
-		void setFS( double newFS );
+		void setFS( int newFS );
 
         /**
 		* Updates proportinal, integral and derivative gains of the system
-		* @param	newPGain	value of the desired proportional gain
-		* @param	newIGain	value of the desired integral gain
-		* @param	newDGain	value of the desired derivative gain
+		* @param	newPGain    value of the desired proportional gain
+		* @param	newIGain    value of the desired integral gain
+		* @param	newDGain    value of the desired derivative gain
+		* @param	fs          value of the desired fs
 		* @return 	void
 		*/
-        void setPIDGains( double newPGain, double newIGain, double newDGain);
+        void setPIDGains( double newPGain, double newIGain, double newDGain, int fs);
 
 		/**
 		* Get the control signal
@@ -109,7 +110,7 @@ class PIDController
         double getFeedbackSignal(void);
 
 		/**
-		* Get Feedback signal
+		* Get the actual time in ms
 		* @param	none
 		* @return 	double
 		*/
@@ -126,22 +127,24 @@ class PIDController
 		
     private:
 
-		double	_dState, 			// Last position input
-				_iState, 			// Integrator state
-				_integratMax, 		// Maximum allowable integrator state
-				_integratMin, 		// Minimum allowable integrator state
-				_iGain, 			// integral gain
-				_pGain, 			// proportional gain
-				_dGain, 			// derivative gain
-				_cotrolSignal,		// control signal
-				_feedbackSignal,	// feedback signal
-				_lastTime,		// Last time sampled in miliseconds
-				_fs,				// Sample Rate in Hert
-				_St;				// Sample time in sec
-		int 	_lffCutoff;			// derivative low filter frecuency cutoff
-		double*	_hLowFilter;		// low filter sinc response
-		FIRLowFilter* _lf;			// low Filter instance var
-		bool	_hasFilter;			// filter flag
+		double	_dState,           // Last position input
+				_iState,           // Integrator state
+				_integratMax,      // Maximum allowable integrator state
+				_integratMin,      // Minimum allowable integrator state
+				_outMax,           // Maximum allowable output value 
+				_outMin,           // Minimum allowable output value
+				_iGain,            // integral gain
+				_pGain,            // proportional gain
+				_dGain,            // derivative gain
+				_cotrolSignal,     // control signal
+				_feedbackSignal,   // feedback signal
+				_lastTime,         // Last time sampled in miliseconds
+				_St;               // Sample time in sec
+		int 	_lffCutoff,        // derivative low filter frecuency cutoff
+		        _fs;               // Sample Rate in Hert
+		double*	_hLowFilter;       // low filter sinc response
+		FIRLowFilter* _lf;         // low Filter instance var
+		bool	_hasFilter;        // filter flag
 
 		
 };

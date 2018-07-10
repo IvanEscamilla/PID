@@ -185,9 +185,10 @@ struct OutputBox : Widget {
 struct InputStepper : Widget {
 
 	Fl_Spinner* _inputWidget;
-	
-	InputStepper( Coord p, int w, int h, string s, Callback cb = defaultHandle)
-	: Widget( p, w, h, s, cb) {}
+	double _Step;
+
+	InputStepper( Coord p, int w, int h, string s, double step, Callback cb = defaultHandle)
+	: _Step(step), Widget( p, w, h, s, cb) {}
 
 	void setValue(double s) { _inputWidget->value(s); }
 	double getValue() { return double( _inputWidget->value() ); }
@@ -204,8 +205,8 @@ struct InputStepper : Widget {
 		_inputWidget->labelsize(14);
 		_inputWidget->callback(_handler);
     	_inputWidget->when(FL_WHEN_ENTER_KEY_ALWAYS);
-    	_inputWidget->step(50);
-    	_inputWidget->range(0, 1000);
+    	_inputWidget->step(_Step);
+    	_inputWidget->range( 0, 255);
 		owner = &window;
 	}
 };
@@ -231,51 +232,11 @@ struct Graph: Widget {
 		_chart->type(FL_LINE_CHART);
    		_chart->bounds(-50, 300);
 	    _chart->autosize(1);
-	    _chart->maxsize(100);
+	    _chart->maxsize(150);
 	    _chart->color(FL_BLACK);
 	    _chart->textcolor(FL_WHITE);
 		owner = &window;
 	}
-    // void draw() {
-    //     printf("drawing line\n");
-    //     // COMPUTE NEW COORDS OF LINE
-    //     static long start = time(NULL);
-    //     long tick = time(NULL) - start;
-    //     char secs[80]; sprintf(secs, "%02ld:%02ld", tick/60, tick%60);
-    //     double pi = 3.14 - (((double)(tick % 60) / 60.0) * 6.28);
-    //     int radius = h() / 2;
-    //     int x1 = (int)(x() + w()/2),
-    //         y1 = (int)(y() + h()/2),
-    //         x2 = (int)(x1 + (sin(pi) * radius)),
-    //         y2 = (int)(y1 + (cos(pi) * radius));
-
-    //     // TELL BASE WIDGET TO DRAW ITS BACKGROUND
-    //     Fl_Box::draw();
-
-    //     // DRAW 'SECOND HAND' OVER WIDGET'S BACKGROUND
-    //     fl_color(TICK_COLOR);
-    //     fl_line(x1, y1, x2, y2);
-    //     fl_color(CIRC_COLOR);
-    //     fl_pie(x1-10, y1-10, 20, 20, 0.0, 360.0);
-
-    //     // DRAW TIMER TEXT STRING
-    //     fl_color(TICK_COLOR);
-    //     fl_font(FL_HELVETICA,16);
-    //     fl_draw(secs, x()+4, y()+h()-4);
-    // }
-
-    // void Timer_CB(void *userdata) {
-    //     MyTimer *o = (MyTimer*)userdata;
-    //     o->redraw();
-    //     Fl::repeat_timeout(0.05, Timer_CB, userdata);
-    // }
-
-
-    // MyTimer(int X,int Y,int W,int H,const char*L=0) : Fl_Box(X,Y,W,H,L) {
-    //     box(FL_FLAT_BOX);
-    //     color(BG_COLOR);
-    //     Fl::add_timeout(0.15, Timer_CB, (void*)this);
-    // }
 };
 
 struct Button : Widget {

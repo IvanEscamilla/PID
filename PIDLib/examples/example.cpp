@@ -8,18 +8,20 @@
 #include <thread>
 #include <mutex>
 #include <list>
+#include <fstream>
 
 //*********************************************************************************
 // Defines
 //*********************************************************************************
 
 #ifndef WINDOWWIDTH
-#define WINDOWWIDTH 800
+#define WINDOWWIDTH 1025
 #endif
 
 #ifndef WINDOWHEIGHT
-#define WINDOWHEIGHT 600
+#define WINDOWHEIGHT 768
 #endif
+
 
 //*********************************************************************************
 // namespaces
@@ -31,15 +33,23 @@ using namespace std;
 // Global Variables
 //*********************************************************************************
 
-list<double> calculatedValues;	// a global instance of std::mutex to protect global variable
-bool killThraeds = false; 		// a global instance of std::mutex to protect global variable
 std::mutex syncMutex;			// a global instance of std::mutex to protect global variable
-double setPoint = 400.0;
-double dgPGain = 0.1;
-double dgIGain = 0.01;
-double dgDGain = 0.001;
+list<double> calculatedValues;	// a global instance of std::mutex to protect global variable
+list<int> timeSample;        // a global instance of std::mutex to protect global variable
+bool   killThraeds = false; 		// a global instance of std::mutex to protect global variable
+double setPoint = 255.0;
+double dgPGain = 0.6;
+double dgIGain = 0.5;
+double dgDGain = 0.158;
 double PIDOutput = 0;
-bool run = false;
+int    igSampleFreq = 250;
+int    igFilterCutOff = 100;
+int    igFilterOrder = 40;
+bool   run = false;
+std::clock_t start;
+double duration;
+PIDController pid(dgPGain,dgIGain,dgDGain, igSampleFreq, igFilterCutOff);
+
 //*********************************************************************************
 // Defines
 //*********************************************************************************
@@ -53,6 +63,12 @@ void getFeedbackSignalHandler(Fl_Widget*, void*);
 void startSimulationHandler(Fl_Widget* btn, void*);
 void getControlSignalHandler(Fl_Widget*, void*);
 void onDesiredStateChange(Fl_Widget*, void*);
+void onPGainChange(Fl_Widget*, void*);
+void onIGainChange(Fl_Widget*, void*);
+void onDGainChange(Fl_Widget*, void*);
+void onSampleFreqChange(Fl_Widget*, void*);
+void onFilterCutoffChange(Fl_Widget*, void*);
+void onFilterOrderChange(Fl_Widget*, void*);
 
 //*********************************************************************************
 // GUI Elements
@@ -68,15 +84,15 @@ Line divisor(Coord(0,WINDOWHEIGHT/3), Coord(WINDOWWIDTH,WINDOWHEIGHT/3), 2 , FL_
 
 /*Input Boxes **************************************************************
  ***************************************************************************/
-InputBox pGainInput(Coord(20,30),50,30,"P Gain");
-InputBox iGainInput(Coord(20,70),50,30,"I Gain");
-InputBox dGainInput(Coord(20,110),50,30,"D Gain");
-InputBox sampleFreqInput(Coord(20,150),50,30,"Sample Frequency");
-InputBox cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency", onCutOffFreqChangeHandle);
-InputBox orderFilterInput(Coord(200,70),50,30,"Order");
-InputBox csVariable(Coord(430,30),50,30,"Control Signal Value");
-InputBox fbVariable(Coord(430,70),50,30,"Feedback Signal Value");
-InputStepper SetPointInput(Coord(430,110),67,30,"Desired State", onDesiredStateChange);
+InputStepper pGainInput(Coord(20,30),70,30,"P Gain",0.1, onPGainChange);
+InputStepper iGainInput(Coord(20,70),70,30,"I Gain",0.1, onIGainChange);
+InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, onDGainChange);
+InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, onSampleFreqChange);
+InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, onFilterCutoffChange);
+InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, onFilterOrderChange);
+InputBox controlSignalInput(Coord(430,30),50,30,"Control Signal Value");
+InputBox feedbackSignalInput(Coord(430,70),50,30,"Feedback Signal Value");
+InputStepper SetPointInput(Coord(430,110),67,30,"Desired State",50, onDesiredStateChange);
 
 /*Labels* ******************************************************************
  ***************************************************************************/
@@ -128,29 +144,29 @@ int main() {
 void bindWindowElements() {
 	window.attach(divisor);
 	window.attach(pGainInput);
-	pGainInput.setValue("10");
+	pGainInput.setValue(dgPGain);
 
 	window.attach(iGainInput);
-	iGainInput.setValue("10");
+	iGainInput.setValue(dgIGain);
 	
 	window.attach(dGainInput);
-	dGainInput.setValue("10");
+	dGainInput.setValue(dgDGain);
 
 	window.attach(sampleFreqInput);
-	sampleFreqInput.setValue("10");
+	sampleFreqInput.setValue(igSampleFreq);
 
 	//Filter inputs
 	window.attach(cutOffFreqInput);
-	cutOffFreqInput.setValue("10");
+	cutOffFreqInput.setValue(igFilterCutOff);
 
 	window.attach(orderFilterInput);
-	orderFilterInput.setValue("1024");
+	orderFilterInput.setValue(igFilterOrder);
 
-	window.attach(csVariable);
-	csVariable.setValue("N/A");
+	window.attach(controlSignalInput);
+	controlSignalInput.setValue("N/A");
 
-	window.attach(fbVariable);
-	fbVariable.setValue("N/A");
+	window.attach(feedbackSignalInput);
+	feedbackSignalInput.setValue("N/A");
 
 	window.attach(PIDText);
 	window.attach(FilterText);
@@ -182,6 +198,7 @@ void GUIThread(){
 	bindWindowElements();
 
 	while (!killThraeds) {
+		// refresh rate to 30fps
 		std::this_thread::sleep_for(std::chrono::milliseconds(33));
 	    // the access to this function is mutually exclusive
 		std::lock_guard<std::mutex> guard(syncMutex);
@@ -204,7 +221,6 @@ void GUIThread(){
 
 void PIDThread() {
 
-	PIDController a(dgPGain,dgIGain,dgDGain, 44000, 100);
 
 	while (!killThraeds) {
 		// the access to this function is mutually exclusive
@@ -212,14 +228,26 @@ void PIDThread() {
 
 
 		if(run){
+			
 			//printf("PIDThread\n");
-			PIDOutput = a.updatePID( setPoint - PIDOutput, setPoint);	
+		 	if( pid.updatePID( setPoint - PIDOutput, setPoint, &PIDOutput) ) {
+		 		timeSample.push_back((int)( std::clock() - start ) / (CLOCKS_PER_SEC/1000));
+		 		calculatedValues.push_back(PIDOutput);
+		 	}
 		}	
   	}
+
+  	for(std::list<double>::iterator it=calculatedValues.begin(); it != calculatedValues.end(); ++it)
+  		  	printf("list: %f\n", *it);
+
+	  for(std::list<int>::iterator it=timeSample.begin(); it != timeSample.end(); ++it)
+	  	printf("list time: %d\n", *it);
 
   	printf("ready to kill PIDThread\n");
 
 }
+
+
 
 //*********************************************************************************
 // Event Handlers
@@ -251,6 +279,7 @@ void getFeedbackSignalHandler(Fl_Widget*, void*) {
 void startSimulationHandler(Fl_Widget* btn, void*) {
 	btn->deactivate();
 	printf("start Simulation\n");
+	start = std::clock();
 	run = true;
 }
 
@@ -283,4 +312,38 @@ void getControlSignalHandler(Fl_Widget*, void*) {
 void onDesiredStateChange(Fl_Widget*, void*) {
 	printf("desired state change\n");
 	setPoint = SetPointInput.getValue();
+}
+
+void onPGainChange(Fl_Widget*, void*) {
+	dgPGain = pGainInput.getValue();
+	printf("P Gain set to %f\n", dgPGain);
+	pid.setPGain(dgPGain);
+}
+
+void onIGainChange(Fl_Widget*, void*) {
+	dgIGain = iGainInput.getValue();
+	printf("I Gain set to %f\n", dgIGain);
+	pid.setIGain(dgIGain);
+}
+
+void onDGainChange(Fl_Widget*, void*) {
+	dgDGain = dGainInput.getValue();
+	printf("D Gain set to %f\n", dgDGain);
+	pid.setDGain(dgDGain);	
+}
+
+void onSampleFreqChange(Fl_Widget*, void*) {
+	igSampleFreq = (int)sampleFreqInput.getValue();
+	printf("PID sample freq set to %d \n", igSampleFreq);
+	pid.setFS(igSampleFreq);
+}
+
+void onFilterCutoffChange(Fl_Widget*, void*) {
+	igFilterCutOff = (int)cutOffFreqInput.getValue();
+	printf("D signal filter cutoff freq set to %d \n", igFilterCutOff);
+}
+
+void onFilterOrderChange(Fl_Widget*, void*){
+	igFilterOrder = (int)orderFilterInput.getValue();
+	printf("D signal filter order set to %d \n", igFilterOrder);
 }

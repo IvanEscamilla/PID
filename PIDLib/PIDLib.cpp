@@ -27,13 +27,18 @@ double PIDController::conv( double signal, double h[], int sizeOfH ) {
  *    The parametzxers specified here are those for for which we can't set up
  *    reliable defaults, so we need to have the user set them.
  ***************************************************************************/
-PIDController::PIDController(double pGain, double iGain, double dGain, double fs = 10) {
-    PIDController::setPIDGains(pGain, iGain, dGain);	//Set gains
+PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 10) {
+    PIDController::setPIDGains(pGain, iGain, dGain, fs);	//Set gains
     _fs = fs;				//set sample rate, defaults 10 Hert
-    _St = 1/_fs;				//Calculate sample time
+    _St = (double)1/_fs;				//Calculate sample time
     _lastTime = nowMs() - _St;
-    _integratMax = 1500;	
+
+    _integratMax = 250;	
     _integratMin = 0;
+
+    _outMax = 255;
+    _outMin = 0;
+
     _cotrolSignal = 0;		//Reset variables
     _feedbackSignal = 0;
 	_hasFilter = false;
@@ -44,13 +49,18 @@ PIDController::PIDController(double pGain, double iGain, double dGain, double fs
  *    The parametzxers specified here are those for for which we can't set up
  *    reliable defaults, so we need to have the user set them.
  ***************************************************************************/
-PIDController::PIDController(double pGain, double iGain, double dGain, double fs = 10, double lffCutoff = 100) {
-    PIDController::setPIDGains(pGain, iGain, dGain);	//Set gains
+PIDController::PIDController(double pGain, double iGain, double dGain, int fs = 10, int lffCutoff = 100) {
+    PIDController::setPIDGains(pGain, iGain, dGain, fs);	//Set gains
     _fs = fs;					//set sample rate, defaults 10 Hert
-    _St = 1/_fs;				//Calculate sample time
+    _St = (double)1/_fs;				//Calculate sample time
     _lastTime = nowMs() - _St;
-    _integratMax = 1500;	
+
+    _integratMax = 1000;	
     _integratMin = 0;
+    
+    _outMax = 255;
+    _outMin = 0;
+
     _cotrolSignal = 0;		//Reset variables
     _feedbackSignal = 0;
 	_hasFilter = true;
@@ -66,7 +76,7 @@ PIDController::~PIDController(){
 	delete _lf;
 } 
 
-double PIDController::updatePID( double error, double desiredState){
+bool PIDController::updatePID( double error, double desiredState, double* result){
 
 	double pTerm, dTerm, iTerm, eFiltered, output;
 	double now = nowMs();
@@ -79,7 +89,8 @@ double PIDController::updatePID( double error, double desiredState){
 
 		//Calculate I term
 		_iState += error;		// calculate the integral state with appropriate limiting
-		// Limit the integrator state if necessary
+		// Limit the integrator state if necessary, Avoid integral windup by constraining integral term to its limits
+
 		if ( _iState > _integratMax) {
 			_iState = _integratMax;
 		} else if ( _iState < _integratMin) {
@@ -91,50 +102,75 @@ double PIDController::updatePID( double error, double desiredState){
 		// calculate D term
 		if(_hasFilter){
 			//Filter the error signal
-			eFiltered = conv(_dState - desiredState, _hLowFilter, _lf->getOrderFilter());
+			eFiltered = conv( desiredState - _dState , _hLowFilter, _lf->getOrderFilter());
 			dTerm = _dGain * eFiltered;
 		} else {
 			// calculate D term
-			dTerm = _dGain * (_dState - desiredState);
+			dTerm = _dGain * ( desiredState - _dState );
 		}
 		
 		_dState = desiredState;
 
-		output = pTerm + dTerm + iTerm;
+		output = pTerm + iTerm + dTerm;
 
+		if(output > _outMax) {
+			output = _outMax;
+		} else if(output < _outMin) {
+			output = _outMin;
+		}
+		
 		_lastTime = now;
-
+		*result = output;
+		return true;
 	}
 	
-	return output;
+	return false;
 
 }
 
-void PIDController::setPIDGains( double newPGain, double newIGain, double newDGain) {
+void PIDController::setPIDGains( double newPGain, double newIGain, double newDGain, int fs = 1) {
 
 	//if some of the gains is less than 0 brake and keep the latest gains
-	if ( newPGain < 0 || newPGain < 0 || newDGain < 0) return;
+	if ( newPGain < 0 || newIGain < 0 || newDGain < 0) return;
 
-	_pGain = newPGain;	// set proportional gain
-	_iGain = newIGain; 	// set integral gain
-	_dGain = newDGain;	// set derivative gain
+	double sampleTime = (double)1/fs;
+	printf("Ganancias Kp: %f Ki: %f y Kd: %f St: %f \n", newPGain, newIGain, newDGain, sampleTime);
+	_pGain = newPGain;              // set proportional gain
+	_iGain = newIGain; // set integral gain
+	_dGain = newDGain; // set derivative gain
+	printf("Ganancias Kp: %f Ki: %f y Kd: %f St: %f \n", _pGain, _iGain, _dGain, sampleTime);
+
 }
 
 void PIDController::setPGain( double newPGain ) {
 	_pGain = newPGain;	// set proportional gain
+	printf("_pGain: %f \n", _pGain);
 }
 
 void PIDController::setIGain( double newIGain ) {
 	_iGain = newIGain;	// set integral gain
+	printf("_iGain: %f , _St: %f \n", _iGain, _St);
 }
 
 void PIDController::setDGain( double newDGain ) {
 	_dGain = newDGain;	// set derivative gain
+	printf("_dGain: %f , _St: %f \n", _dGain, _St);
 }
 
-void PIDController::setFS( double newFS ) {
-	_fs = newFS;			//set sample rate, defaults 10 Hert
-    _St = 1/_fs;				//Calculate sample time
+void PIDController::setFS( int newFS ) {
+
+	if (newFS > 0) {
+	
+		double newSampleTime = (double)1/newFS;  //Calculate sample time
+	    //adjusts the Ki and kd gains 
+	    //double ratio = (double)newSampleTime / (double) _St;
+
+	    //_iGain *= ratio; // set integral gain
+		//_dGain /= ratio; // set derivative gain
+
+		_fs = newFS;           // set sample rate
+	    _St = newSampleTime;   // set new sample time
+	} 
 }
 
 double PIDController::getCotrolSignal() {
