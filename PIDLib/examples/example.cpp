@@ -5,11 +5,14 @@
 #include "PIDLib.h"
 #include "FIRLowFilter.h"
 #include <chrono>
+#include <ctime>
 #include <thread>
 #include <mutex>
 #include <list>
 #include <fstream>
 #include <random>
+#include <iostream>
+#include <string>
 
 //*********************************************************************************
 // Defines
@@ -23,6 +26,9 @@
 #define WINDOWHEIGHT 768
 #endif
 
+#ifndef PI
+#define PI 3.14159265359
+#endif
 
 //*********************************************************************************
 // namespaces
@@ -30,6 +36,15 @@
 
 using namespace std;
 
+inline std::string date_string()
+{
+    time_t rawtime;
+    std::time(&rawtime);
+    struct tm *tinfo = std::localtime(&rawtime);
+    char buffer[20];
+    strftime(buffer, 20, "%F-%T", tinfo);
+    return std::string(buffer);
+}
 //*********************************************************************************
 // Global Variables
 //*********************************************************************************
@@ -42,8 +57,8 @@ list<int> timeSample;           // a global instance of std::mutex to protect gl
 bool   killThraeds = false;     // a global instance of std::mutex to protect global variable
 double dgSetPoint = 255.0;
 double dgPGain = 0.6;
-double dgIGain = 0.5;
-double dgDGain = 0.158;
+double dgIGain = 0.3;
+double dgDGain = 0.01;
 double dgErrorSignal = 0;
 double dgPIDControlSignal = 0;
 double dgPIDFeedbackSignal = 0;
@@ -54,19 +69,31 @@ bool   run = false;
 std::clock_t start;
 double duration;
 
-class Sinus: public AbstractPlantModel {
+class fOBilinearFunction: public AbstractPlantModel {
   public:
     
     double calculate( double controlSignal, double noise, double dt) {
-    	printf("calculate sinusModel %f %f %f\n", controlSignal, noise, dt );
-    	return (sin((int)( std::clock() - start ) / (CLOCKS_PER_SEC/1000))-0.5)*50 + noise + controlSignal;
+    	// Function to implement the discretization of a continuous time first
+		// order lag sys = coeff/(s+coeff) using the Tustin (Bilinear) transformation.
+    	double coeff = 2;
+
+	    double num = (1/(1+2/coeff/dt)); // numerator
+	    double den = (1-2/coeff/dt)*num; // denominator
+	    double temp;
+	    double output;
+
+	    temp = controlSignal - den * _state + noise;
+	    output = num*(temp + _state);
+	    _state = temp;
+
+	    return output;
     };
 
 };
 
-Sinus* sinusModel = new Sinus();
+fOBilinearFunction* model = new fOBilinearFunction();
 
-PIDController pid(dgPGain,dgIGain,dgDGain, igSampleFreq, igFilterCutOff, sinusModel);
+PIDController pid(dgPGain,dgIGain,dgDGain, igSampleFreq, igFilterCutOff, model);
 
 //*********************************************************************************
 // Defines
@@ -102,15 +129,15 @@ Line divisor(Coord(0,WINDOWHEIGHT/3), Coord(WINDOWWIDTH,WINDOWHEIGHT/3), 2 , FL_
 
 /*Input Boxes **************************************************************
  ***************************************************************************/
-InputStepper pGainInput(Coord(20,30),70,30,"P Gain",0.1, onPGainChange);
-InputStepper iGainInput(Coord(20,70),70,30,"I Gain",0.1, onIGainChange);
-InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, onDGainChange);
-InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, onSampleFreqChange);
-InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, onFilterCutoffChange);
-InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, onFilterOrderChange);
+InputStepper pGainInput(Coord(20,30),70,30,"P Gain",0.1, Range(0,300), onPGainChange);
+InputStepper iGainInput(Coord(20,70),70,30,"I Gain",0.1, Range(0,150),onIGainChange);
+InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, Range(0,100),onDGainChange);
+InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, Range(0,100000), onSampleFreqChange);
+InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, Range(0,100000), onFilterCutoffChange);
+InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, Range(0,300), onFilterOrderChange);
 InputBox controlSignalInput(Coord(430,30),90,30,"Control Signal Value");
 InputBox feedbackSignalInput(Coord(430,70),90,30,"Feedback Signal Value");
-InputStepper SetPointInput(Coord(430,110),67,30,"Desired State",50, onDesiredStateChange);
+InputStepper SetPointInput(Coord(430,110),67,30,"Desired State",50, Range(0,1500), onDesiredStateChange);
 
 /*Labels* ******************************************************************
  ***************************************************************************/
@@ -177,8 +204,8 @@ void bindWindowElements() {
 	window.attach(cutOffFreqInput);
 	cutOffFreqInput.setValue(igFilterCutOff);
 
-	window.attach(orderFilterInput);
-	orderFilterInput.setValue(igFilterOrder);
+	//window.attach(orderFilterInput);
+	//orderFilterInput.setValue(igFilterOrder);
 
 	window.attach(controlSignalInput);
 	controlSignalInput.setValue("N/A");
@@ -228,7 +255,7 @@ void GUIThread(){
 			Fl::lock();      // acquire the lock
 		    ControlSignalGraph.addValue(dgPIDControlSignal, SIGNALCOLOR(CONTROL));
 		   	FeedbackSignalGraph.addValue(dgPIDFeedbackSignal, SIGNALCOLOR(FEEDBACK));
-		    //ErrorSignalGraph.addValue(val1, SIGNALCOLOR(ERROR));
+		    ErrorSignalGraph.addValue(dgErrorSignal, SIGNALCOLOR(ERROR));
 		   	SetPointSignalGraph.addValue(dgSetPoint, SIGNALCOLOR(SETPOINT));
 		    Fl::unlock();    // release the lock; allow other threads to access FLTK again
 		    Fl::awake();     // use Fl::awake() to signal main thread to refresh the GUI	
@@ -280,6 +307,26 @@ void PIDThread() {
 
 void exportDataHandler(Fl_Widget*, void*) {
 	printf("export simulation data\n");
+	// create and open the .csv file
+	ofstream outputFile;
+
+	std::string filename = "output_" + date_string() +".csv";
+    outputFile.open(filename);
+    // write the file headers
+    outputFile << "time(ms)" << "," << "error signal" << "," <<"control signal" << "," << "feedback signal" << std::endl;
+    std::list<double>::iterator it2 = errorSignal.begin();
+	std::list<double>::iterator it3 = controlSignal.begin();
+	std::list<double>::iterator it4 = feedbackSignal.begin();
+
+	for(std::list<int>::iterator it1 = timeSample.begin(); it1 != timeSample.end(); ++it1 ){
+		outputFile << *it1 << "," << *it2 << "," << *it3 << "," << *it4 << std::endl;
+		++it2;
+		++it3;
+		++it4;
+	}
+    // close the output file
+    outputFile.close();
+    
 }
 
 void stopSimulationHandler(Fl_Widget*, void*) {
@@ -295,11 +342,11 @@ void onCutOffFreqChangeHandle(Fl_Widget*, void*) {
 }
 
 void getFeedbackSignalHandler(Fl_Widget*, void*) {
-	printf("get feesback signal\n");
-
+	printf("Getting feedback signal...\n");
+	feedbackSignalInput.setValue(std::to_string(pid.getFeedbackSignal()));
 	//float a = -1.23456;
-	double b = -12;
-	printf("test negatives \n\n float: %f -- double: %f \n", b, sin(2*PI*300*b));
+	//double b = -12;
+	//printf("test negatives \n\n float: %f -- double: %f \n", b, sin(2*PI*300*b));
 
 }
 

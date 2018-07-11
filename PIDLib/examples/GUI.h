@@ -45,6 +45,20 @@ void defaultHandle(Fl_Widget*, void*) {
 
 struct Windows;
 
+struct Range {
+	Range(int min, int max) : 
+		_min(min), 
+		_max(max) {}
+	int getMin(void) { return _min; }
+	int getMax(void) { return _max; }
+
+	void setMin(int newMin) { _min = newMin; }
+	void setMax(int newMax) { _max = newMax; }
+	private:
+		int _min, 
+			_max;
+};
+
 struct Coord {
 	Coord(int x, int y) : 
 		_x(x), 
@@ -186,9 +200,10 @@ struct InputStepper : Widget {
 
 	Fl_Spinner* _inputWidget;
 	double _Step;
+	Range _range;
 
-	InputStepper( Coord p, int w, int h, string s, double step, Callback cb = defaultHandle)
-	: _Step(step), Widget( p, w, h, s, cb) {}
+	InputStepper( Coord p, int w, int h, string s, double step, Range range, Callback cb = defaultHandle)
+	: _Step(step), _range(range), Widget( p, w, h, s, cb) {}
 
 	void setValue(double s) { _inputWidget->value(s); }
 	double getValue() { return double( _inputWidget->value() ); }
@@ -206,7 +221,7 @@ struct InputStepper : Widget {
 		_inputWidget->callback(_handler);
     	_inputWidget->when(FL_WHEN_ENTER_KEY_ALWAYS);
     	_inputWidget->step(_Step);
-    	_inputWidget->range( 0, 255);
+    	_inputWidget->range( _range.getMin(), _range.getMax());
 		owner = &window;
 	}
 };
@@ -230,7 +245,7 @@ struct Graph: Widget {
 	void attach(Windows &window) {
 		_chart = new Fl_Chart( _p.getX(), _p.getY(), _w, _h, _label.c_str());
 		_chart->type(FL_LINE_CHART);
-   		_chart->bounds(-50, 300);
+   		_chart->bounds(-50, 270);
 	    _chart->autosize(1);
 	    _chart->maxsize(150);
 	    _chart->color(FL_BLACK);

@@ -6,6 +6,7 @@
 class AbstractPlantModel {
 
 public:
+    double _state = 0.0;
  	explicit
  	AbstractPlantModel(double noiseAmplitud = 0) : 
  	_noiseAmplitud(noiseAmplitud) {}
