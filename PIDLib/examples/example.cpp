@@ -42,7 +42,7 @@ inline std::string date_string()
     std::time(&rawtime);
     struct tm *tinfo = std::localtime(&rawtime);
     char buffer[20];
-    strftime(buffer, 20, "%F-%T", tinfo);
+    strftime(buffer, 20, "%Y%m%d%H%M%S", tinfo);
     return std::string(buffer);
 }
 //*********************************************************************************
@@ -310,8 +310,8 @@ void exportDataHandler(Fl_Widget*, void*) {
 	printf("export simulation data\n");
 	// create and open the .csv file
 	ofstream outputFile;
-
-	std::string filename = "output_" + date_string() +".csv";
+	string timestamp = date_string();
+	std::string filename = "output_" + timestamp +".csv";
     outputFile.open(filename);
     // write the file headers
     outputFile << "time(ms)" << "," << "error signal" << "," <<"control signal" << "," << "feedback signal" << std::endl;
@@ -329,7 +329,7 @@ void exportDataHandler(Fl_Widget*, void*) {
     outputFile.close();
 
     //generate matlab script that plots the results
-    outputFile.open("output_" + date_string() +".m");
+    outputFile.open("output_" + timestamp +".m");
     // write the file headers
     outputFile << "Array=csvread('" << filename <<"');" << std::endl;
     outputFile << "col1 = Array(:, 1);" << std::endl;
