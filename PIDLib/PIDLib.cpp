@@ -2,7 +2,6 @@
 #include "PIDLib.h"
 
 
-
 double PIDController::nowMs() {
 //	tps tp = clock::now();
 	auto current_time = clock::now();
@@ -128,7 +127,7 @@ bool PIDController::updatePID( double error, double desiredState, double* contro
 		*controlSignal = _cotrolSignal;
 
 		// calculate fbsignal
-		printf("%f noise generated\n", _model->generateNoise());
+		//printf("%f noise generated\n", _model->generateNoise());
 		_feedbackSignal = _model->calculate(_cotrolSignal, _model->generateNoise(), (int)now);
 
 		*feedbackSignal = _feedbackSignal;

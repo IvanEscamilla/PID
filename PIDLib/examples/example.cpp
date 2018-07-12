@@ -75,7 +75,7 @@ class fOBilinearFunction: public AbstractPlantModel {
     double calculate( double controlSignal, double noise, double dt) {
     	// Function to implement the discretization of a continuous time first
 		// order lag sys = coeff/(s+coeff) using the Tustin (Bilinear) transformation.
-		printf("noise %f\n", noise );
+		//printf("noise %f\n", noise );
     	double coeff = 2;
 
 	    double num = (1/(1+2/coeff/dt)); // numerator
@@ -327,6 +327,23 @@ void exportDataHandler(Fl_Widget*, void*) {
 	}
     // close the output file
     outputFile.close();
+
+    //generate matlab script that plots the results
+    outputFile.open("output_" + date_string() +".m");
+    // write the file headers
+    outputFile << "Array=csvread('" << filename <<"');" << std::endl;
+    outputFile << "col1 = Array(:, 1);" << std::endl;
+    outputFile << "col2 = Array(:, 2);" << std::endl;
+    outputFile << "col3 = Array(:, 3);" << std::endl;
+    outputFile << "col4 = Array(:, 4);" << std::endl;
+    outputFile << "plot(col1, col2, 'r', col1, col3, 'g',col1, col4, 'b');" << std::endl;
+    outputFile << "title('"<< filename <<"');" << std::endl;
+    outputFile << "xlabel({'Time','(in ms)'});" << std::endl;
+    outputFile << "ylabel('Time');" << std::endl;
+    outputFile << "grid on" << std::endl;
+
+    // close the output file
+    outputFile.close();
     
 }
 
@@ -399,6 +416,6 @@ void onFilterCutoffChange(Fl_Widget*, void*) {
 
 void onNoiseChange(Fl_Widget*, void*){
 	igFilterOrder = (int)noiseInput.getValue();
-	printf("D signal filter order set to %d \n", igFilterOrder);
+	printf("Noise set to %d \n", igFilterOrder);
 	model->updateNoiseAmplitud(igFilterOrder);
 }
