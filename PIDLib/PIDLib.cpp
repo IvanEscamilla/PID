@@ -7,7 +7,7 @@ double PIDController::nowMs() {
 //	tps tp = clock::now();
 	auto current_time = clock::now();
 	auto duration_in_seconds = dsec(current_time.time_since_epoch());
-	return duration_in_seconds.count();;
+	return duration_in_seconds.count();
 }
 
 
@@ -128,6 +128,7 @@ bool PIDController::updatePID( double error, double desiredState, double* contro
 		*controlSignal = _cotrolSignal;
 
 		// calculate fbsignal
+		printf("%f noise generated\n", _model->generateNoise());
 		_feedbackSignal = _model->calculate(_cotrolSignal, _model->generateNoise(), (int)now);
 
 		*feedbackSignal = _feedbackSignal;

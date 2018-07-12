@@ -75,6 +75,7 @@ class fOBilinearFunction: public AbstractPlantModel {
     double calculate( double controlSignal, double noise, double dt) {
     	// Function to implement the discretization of a continuous time first
 		// order lag sys = coeff/(s+coeff) using the Tustin (Bilinear) transformation.
+		printf("noise %f\n", noise );
     	double coeff = 2;
 
 	    double num = (1/(1+2/coeff/dt)); // numerator
@@ -132,7 +133,7 @@ Line divisor(Coord(0,WINDOWHEIGHT/3), Coord(WINDOWWIDTH,WINDOWHEIGHT/3), 2 , FL_
 InputStepper pGainInput(Coord(20,30),70,30,"P Gain",0.1, Range(0,300), onPGainChange);
 InputStepper iGainInput(Coord(20,70),70,30,"I Gain",0.1, Range(0,150),onIGainChange);
 InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, Range(0,100),onDGainChange);
-InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, Range(0,100000), onSampleFreqChange);
+InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, Range(10,100000), onSampleFreqChange);
 InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, Range(0,100000), onFilterCutoffChange);
 InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, Range(0,300), onFilterOrderChange);
 InputBox controlSignalInput(Coord(430,30),90,30,"Control Signal Value");
@@ -204,8 +205,8 @@ void bindWindowElements() {
 	window.attach(cutOffFreqInput);
 	cutOffFreqInput.setValue(igFilterCutOff);
 
-	//window.attach(orderFilterInput);
-	//orderFilterInput.setValue(igFilterOrder);
+	window.attach(orderFilterInput);
+	orderFilterInput.setValue(igFilterOrder);
 
 	window.attach(controlSignalInput);
 	controlSignalInput.setValue("N/A");
@@ -399,4 +400,5 @@ void onFilterCutoffChange(Fl_Widget*, void*) {
 void onFilterOrderChange(Fl_Widget*, void*){
 	igFilterOrder = (int)orderFilterInput.getValue();
 	printf("D signal filter order set to %d \n", igFilterOrder);
+	model->updateNoiseAmplitud(igFilterOrder);
 }

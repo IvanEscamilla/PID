@@ -7,6 +7,7 @@ class AbstractPlantModel {
 
 public:
     double _state = 0.0;
+
  	explicit
  	AbstractPlantModel(double noiseAmplitud = 0) : 
  	_noiseAmplitud(noiseAmplitud) {}
@@ -17,9 +18,9 @@ public:
 
     double generateNoise() {
 		// Define random generator with Gaussian distribution
-		std::default_random_engine generator;
-		std::normal_distribution<double> dist(_mean, _stddev);
-		return dist(generator) * _noiseAmplitud;
+        int random_number = std::rand()/((RAND_MAX + 1u)/4); // rand() return a number between ​0​ and RAND_MAX
+		printf("%d rand\n", random_number );
+        return random_number * _noiseAmplitud;
     }
 
     void updateNoiseAmplitud( double newAmplitud ){
@@ -27,7 +28,7 @@ public:
     }
  
  private:
-     double _noiseAmplitud,
-     		_mean   = 0.0,
-     		_stddev = 0.1;
+     double _noiseAmplitud = 0,
+     		_mean   = 0,
+     		_stddev = 2.1;
  };
