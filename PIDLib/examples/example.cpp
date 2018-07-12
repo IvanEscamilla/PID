@@ -340,6 +340,7 @@ void exportDataHandler(Fl_Widget*, void*) {
     outputFile << "title('"<< filename <<"');" << std::endl;
     outputFile << "xlabel({'Time','(in ms)'});" << std::endl;
     outputFile << "ylabel('Value');" << std::endl;
+    outputFile << "legend('Error signal','Control signal', 'Feedback signal')" << std::endl;
     outputFile << "grid on" << std::endl;
 
     // close the output file

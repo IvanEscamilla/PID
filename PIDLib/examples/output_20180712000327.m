@@ -7,4 +7,5 @@ plot(col1, col2, 'r', col1, col3, 'g',col1, col4, 'b');
 title('output_20180712000327.csv');
 xlabel({'Time','(in ms)'});
 ylabel('Value');
+legend('Error signal','Control signal', 'Feedback signal')
 grid on
