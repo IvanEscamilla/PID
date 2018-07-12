@@ -331,7 +331,7 @@ void exportDataHandler(Fl_Widget*, void*) {
     //generate matlab script that plots the results
     outputFile.open("output_" + timestamp +".m");
     // write the file headers
-    outputFile << "Array=csvread('" << filename <<"');" << std::endl;
+    outputFile << "Array=csvread('" << filename <<"',1,0);" << std::endl;
     outputFile << "col1 = Array(:, 1);" << std::endl;
     outputFile << "col2 = Array(:, 2);" << std::endl;
     outputFile << "col3 = Array(:, 3);" << std::endl;
