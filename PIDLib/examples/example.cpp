@@ -339,7 +339,7 @@ void exportDataHandler(Fl_Widget*, void*) {
     outputFile << "plot(col1, col2, 'r', col1, col3, 'g',col1, col4, 'b');" << std::endl;
     outputFile << "title('"<< filename <<"');" << std::endl;
     outputFile << "xlabel({'Time','(in ms)'});" << std::endl;
-    outputFile << "ylabel('Time');" << std::endl;
+    outputFile << "ylabel('Value');" << std::endl;
     outputFile << "grid on" << std::endl;
 
     // close the output file
