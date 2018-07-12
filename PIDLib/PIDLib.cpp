@@ -115,7 +115,7 @@ bool PIDController::updatePID( double error, double desiredState, double* contro
 		}
 		
 		_dState = desiredState;
-
+ 
 		_cotrolSignal = pTerm + iTerm + dTerm;
 
 		if(_cotrolSignal > _outMax) {

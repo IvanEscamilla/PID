@@ -64,7 +64,7 @@ double dgPIDControlSignal = 0;
 double dgPIDFeedbackSignal = 0;
 int    igSampleFreq = 250;
 int    igFilterCutOff = 100;
-int    igFilterOrder = 40;
+int    igFilterOrder = 0;
 bool   run = false;
 std::clock_t start;
 double duration;
@@ -114,7 +114,7 @@ void onIGainChange(Fl_Widget*, void*);
 void onDGainChange(Fl_Widget*, void*);
 void onSampleFreqChange(Fl_Widget*, void*);
 void onFilterCutoffChange(Fl_Widget*, void*);
-void onFilterOrderChange(Fl_Widget*, void*);
+void onNoiseChange(Fl_Widget*, void*);
 
 //*********************************************************************************
 // GUI Elements
@@ -135,7 +135,7 @@ InputStepper iGainInput(Coord(20,70),70,30,"I Gain",0.1, Range(0,150),onIGainCha
 InputStepper dGainInput(Coord(20,110),70,30,"D Gain",0.001, Range(0,100),onDGainChange);
 InputStepper sampleFreqInput(Coord(20,150),70,30,"Sample Frequency",10, Range(10,100000), onSampleFreqChange);
 InputStepper cutOffFreqInput(Coord(200,30),50,30,"Cut-Off Frequency",10, Range(0,100000), onFilterCutoffChange);
-InputStepper orderFilterInput(Coord(200,70),50,30,"Order",1, Range(0,300), onFilterOrderChange);
+InputStepper noiseInput(Coord(20,190),70,30,"Noise amplitud",0.2, Range(0,300), onNoiseChange);
 InputBox controlSignalInput(Coord(430,30),90,30,"Control Signal Value");
 InputBox feedbackSignalInput(Coord(430,70),90,30,"Feedback Signal Value");
 InputStepper SetPointInput(Coord(430,110),67,30,"Desired State",50, Range(0,1500), onDesiredStateChange);
@@ -205,8 +205,8 @@ void bindWindowElements() {
 	window.attach(cutOffFreqInput);
 	cutOffFreqInput.setValue(igFilterCutOff);
 
-	window.attach(orderFilterInput);
-	orderFilterInput.setValue(igFilterOrder);
+	window.attach(noiseInput);
+	noiseInput.setValue(igFilterOrder);
 
 	window.attach(controlSignalInput);
 	controlSignalInput.setValue("N/A");
@@ -397,8 +397,8 @@ void onFilterCutoffChange(Fl_Widget*, void*) {
 	printf("D signal filter cutoff freq set to %d \n", igFilterCutOff);
 }
 
-void onFilterOrderChange(Fl_Widget*, void*){
-	igFilterOrder = (int)orderFilterInput.getValue();
+void onNoiseChange(Fl_Widget*, void*){
+	igFilterOrder = (int)noiseInput.getValue();
 	printf("D signal filter order set to %d \n", igFilterOrder);
 	model->updateNoiseAmplitud(igFilterOrder);
 }
